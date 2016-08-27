@@ -8,6 +8,15 @@ import ijson
 import ftplib
 from urllib import urlopen
 
+def parse_args():
+	parser = argparse.ArgumentParser(description='''
+A script for accessing the current release of Ensembl Bacteria and downloading
+complete genomes.  Will download nucleotide, amino acid, and CDS information, as
+well as a metadata table.
+	''')
+	parser.add_argument('outdir', type=str,help='directory to download genomes to')
+	return parser.parse_args()
+
 def parse_json():
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
@@ -28,14 +37,6 @@ def parse_json():
 	for js in items:
 		count += 1
 
-		# block for getting JSON datatypes
-		# if count > 1: break
-		# for k in js:
-		# 	print k, js[k]
-
-		# print js['assembly_level']
-		# if js['assembly_level'] == "chromosome":
-
 		thisline = []
 		finished_genomes[js["assembly_id"]] = {}
 		thisline.append(js["assembly_id"])
@@ -48,7 +49,6 @@ def parse_json():
 		thisline.append(js["annotations"]["nProteinCoding"])
 
 		o.write("\t".join([str(x) for x in thisline])+"\n")
-
 
 		if count % 100 == 0:
 			print count, "JSON records parsed."
