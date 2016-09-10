@@ -6,7 +6,7 @@
 
 import ijson
 import ftplib
-import argparse, os, errno, sys
+import argparse, os, errno, sys, subprocess
 from urllib import urlopen
 
 def parse_args():
@@ -63,7 +63,7 @@ def parse_json(outdir):
 			print count, "JSON records parsed."
 
 		#### remove! only for testing purposes
-		if count > 500:
+		if count > 100:
 			break
 
 	print len(finished_genomes), "of these are finished genomes."
@@ -80,7 +80,7 @@ def setupdirs(outdir):
 			print "Exiting to prevent overwriting..."
 			sys.exit()
 
-	for f in ["nuc","prot","dna","gff"]:
+	for f in ["cds","pep","dna","cdna","ncrna"]:
 		try:
 			os.makedirs(os.path.join(os.path.join(outdir,f)))
 		except OSError:
@@ -89,28 +89,52 @@ def setupdirs(outdir):
 	print outdir
 	return
 
-def extract_genomes(fg, outdir):
+def get_fasta_files(fg, outdir):
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
+	print "Downloading fasta files..."
+	count = 0
 	for f in fg:
-		print f
-		print fg[f]["name"]
-		print fg[f]["dbname"]
 		ens.cwd("/pub/bacteria/current/fasta/{}/{}/dna".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
-		print ens.pwd()
-		print ens.nlst()
 		for filepath in ens.nlst():
 			if filepath.endswith(".dna.toplevel.fa.gz"):
-				o = open(os.path.join(outdir,"dna",fg[f]["species"]+".fa.gz"),'wb')
-				ens.retrbinary("RETR " + filepath, o.write)
+				download_and_unzip(ens,filepath,os.path.join(outdir,"dna",fg[f]["species"]+".dna.fa.gz"))
+		ens.cwd("../pep")
+		for filepath in ens.nlst():
+			if filepath.endswith(".pep.all.fa.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"pep",fg[f]["species"]+".pep.fa.gz"))
+		ens.cwd("../cds")
+		for filepath in ens.nlst():
+			if filepath.endswith(".cds.all.fa.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"cds",fg[f]["species"]+".cds.fa.gz"))
+		ens.cwd("../cdna")
+		for filepath in ens.nlst():
+			if filepath.endswith(".cdna.all.fa.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"cdna",fg[f]["species"]+".cdna.fa.gz"))
+		ens.cwd("../ncrna")
+		for filepath in ens.nlst():
+			if filepath.endswith(".ncrna.fa.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"ncrna",fg[f]["species"]+".ncrna.fa.gz"))
+		count += 1
+		if count % 10 == 0:
+			print count, "files downloaded."
+	ens.close()
 
+def download_and_unzip(ftp,f,outfile):
+	o = open(outfile,'wb')
+	ftp.retrbinary("RETR " + f, o.write)
+	o.close()
+	cmds = ["gunzip",outfile]
+	proc = subprocess.Popen(cmds)
+	proc.wait()
+	return
 
 def main():
 	args = parse_args()
 	outdir = os.path.abspath(args.outdir)
 	setupdirs(outdir)
 	finished_genomes = parse_json(outdir)
-	extract_genomes(finished_genomes, outdir)
+	get_fasta_files(finished_genomes, outdir)
 
 
 if __name__ == '__main__':
