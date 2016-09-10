@@ -2,8 +2,6 @@
 #schmelnyk@gmail.com
 #UBC Microbiology - Haney Lab
 
-## blurb to show git
-
 # This script is used to download genomes from Ensembl Bacteria (http://bacteria.ensembl.org/)
 
 import ijson
