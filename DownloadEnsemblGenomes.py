@@ -80,7 +80,7 @@ def setupdirs(outdir):
 			print "Exiting to prevent overwriting..."
 			sys.exit()
 
-	for f in ["cds","pep","dna","cdna","ncrna"]:
+	for f in ["cds","pep","dna","ncrna", "gff3"]:
 		try:
 			os.makedirs(os.path.join(os.path.join(outdir,f)))
 		except OSError:
@@ -107,10 +107,6 @@ def get_fasta_files(fg, outdir):
 		for filepath in ens.nlst():
 			if filepath.endswith(".cds.all.fa.gz"):
 				download_and_unzip(ens,filepath,os.path.join(outdir,"cds",fg[f]["species"]+".cds.fa.gz"))
-		ens.cwd("../cdna")
-		for filepath in ens.nlst():
-			if filepath.endswith(".cdna.all.fa.gz"):
-				download_and_unzip(ens,filepath,os.path.join(outdir,"cdna",fg[f]["species"]+".cdna.fa.gz"))
 		ens.cwd("../ncrna")
 		for filepath in ens.nlst():
 			if filepath.endswith(".ncrna.fa.gz"):
@@ -129,13 +125,26 @@ def download_and_unzip(ftp,f,outfile):
 	proc.wait()
 	return
 
+def get_gff_files(fg, outdir):
+	ens = ftplib.FTP('ftp.ensemblgenomes.org')
+	ens.login()
+	print "Downloading GFF3 files..."
+	count = 0
+	for f in fg:
+		ens.cwd("/pub/bacteria/current/gff3/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
+		for filepath in ens.nlst():
+			fields = filepath.split(".")
+			if ".".join(fields[3:]) == ("gff3.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"gff3",fg[f]["species"]+".gff3.gz"))
+	ens.close()
+
 def main():
 	args = parse_args()
 	outdir = os.path.abspath(args.outdir)
 	setupdirs(outdir)
 	finished_genomes = parse_json(outdir)
 	get_fasta_files(finished_genomes, outdir)
-
+	get_gff_files(finished_genomes, outdir)
 
 if __name__ == '__main__':
 	main()
