@@ -6,6 +6,7 @@
 
 import ijson
 import ftplib
+import psycopg2
 import argparse, os, errno, sys, subprocess
 from urllib import urlopen
 
@@ -13,9 +14,10 @@ def parse_args():
 	parser = argparse.ArgumentParser(description='''
 A script for accessing the current release of Ensembl Bacteria and downloading
 complete genomes.  Will download nucleotide, amino acid, and CDS information, as
-well as a metadata table.
+well as a metadata table for SQL.
 	''')
 	parser.add_argument('outdir', type=str,help='directory to download genomes to')
+	parser.add_argument('--newdb', action="store_true",help="use if new psql database must be generated")
 	return parser.parse_args()
 
 def parse_json(outdir):
@@ -40,6 +42,7 @@ def parse_json(outdir):
 	count = 0
 	finished_genomes = {}
 
+	p = open(os.path.join(outdir, "downloaded_genomes.txt"),'w')
 	for js in items:
 		count += 1
 
@@ -56,6 +59,7 @@ def parse_json(outdir):
 				finished_genomes[js["assembly_id"]][feat] = js[feat]
 			finished_genomes[js["assembly_id"]]['contigs'] = len(js["sequences"])
 			finished_genomes[js["assembly_id"]]['ngenes'] = js["annotations"]["nProteinCoding"]
+			p.write("\t".join([str(x) for x in thisline])+"\n")
 
 		o.write("\t".join([str(x) for x in thisline])+"\n")
 
@@ -67,6 +71,8 @@ def parse_json(outdir):
 			break
 
 	print len(finished_genomes), "of these are finished genomes."
+	o.close()
+	p.close()
 
 	ens.close()
 	return finished_genomes
@@ -80,7 +86,7 @@ def setupdirs(outdir):
 			print "Exiting to prevent overwriting..."
 			sys.exit()
 
-	for f in ["cds","pep","dna","ncrna", "gff3"]:
+	for f in ["cds","pep","dna","ncrna", "gff3", "genbank"]:
 		try:
 			os.makedirs(os.path.join(os.path.join(outdir,f)))
 		except OSError:
@@ -138,13 +144,43 @@ def get_gff_files(fg, outdir):
 				download_and_unzip(ens,filepath,os.path.join(outdir,"gff3",fg[f]["species"]+".gff3.gz"))
 	ens.close()
 
+def get_genbank_files(fg, outdir):
+	ens = ftplib.FTP('ftp.ensemblgenomes.org')
+	ens.login()
+	print "Downloading genbank files..."
+	count = 0
+	for f in fg:
+		print "_".join(fg[f]["dbname"].split("_")[0:3])
+		print fg[f]["species"]
+		ens.cwd("/pub/bacteria/current/genbank/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
+		for filepath in ens.nlst():
+			if filepath.endswith(".dat.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"genbank",fg[f]["species"]+".gb.gz"))
+	ens.close()
+
+def setup_psqldb():
+	con = psycopg2.connect(user='ryan', dbname="postgres", host='localhost', password='')
+	con.set_isolation_level(0)
+	cur = con.cursor()
+	cur.execute('CREATE DATABASE test')
+	con.set_isolation_level(1)
+	cur.execute("""CREATE TABLE test (id serial PRIMARY KEY, assembly_id varchar, source varchar, base_count int,
+		species varchar, taxonomy_id int, contigs int, protein_coding_genes int, date_added date, date_modified date);""")
+	cur.close()
+	con.close()
+	return
+
 def main():
 	args = parse_args()
 	outdir = os.path.abspath(args.outdir)
+	newdb = args.newdb
+	if newdb:
+		setup_psqldb()
 	setupdirs(outdir)
 	finished_genomes = parse_json(outdir)
 	get_fasta_files(finished_genomes, outdir)
 	get_gff_files(finished_genomes, outdir)
+	get_genbank_files(finished_genomes, outdir)
 
 if __name__ == '__main__':
 	main()
