@@ -66,6 +66,10 @@ def parse_json(outdir):
 		if count % 100 == 0:
 			print count, "JSON records parsed."
 
+		##### FOR TESTING, REMOVE!!
+		if count > 100:
+			break
+
 	print len(finished_genomes), "of these are finished genomes."
 	o.close()
 	p.close()
@@ -91,7 +95,9 @@ def setupdirs(outdir):
 	print outdir
 	return
 
-def get_fasta_files(fg, outdir):
+def get_files(fg, outdir, EV):
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+	cur = con.cursor()
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
 	print "Downloading fasta files..."
@@ -113,10 +119,29 @@ def get_fasta_files(fg, outdir):
 		for filepath in ens.nlst():
 			if filepath.endswith(".ncrna.fa.gz"):
 				download_and_unzip(ens,filepath,os.path.join(outdir,"ncrna",fg[f]["species"]+".ncrna.fa.gz"))
+		ens.cwd("/pub/bacteria/current/gff3/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
+		for filepath in ens.nlst():
+			fields = filepath.split(".")
+			if ".".join(fields[3:]) == ("gff3.gz"):
+				download_and_unzip(ens,filepath,os.path.join(outdir,"gff3",fg[f]["species"]+".gff3.gz"))
+		sql = """INSERT INTO genome_metadata (assembly_id, base_count, species, taxonomy_id, contigs,
+			protein_coding_genes, source, date_added, date_modified) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);"""
+		vals = [f]
+		for key in ["base_count", "species", "taxonomy_id", "contigs","ngenes"]:
+			vals.append(fg[f][key])
+		vals.append("ensembl-"+EV)
+		vals.append(datetime.datetime.now())
+		vals.append(datetime.datetime.now())
+		cur.execute(sql, vals)
+		con.commit()
 		count += 1
 		if count % 10 == 0:
 			print count, "files downloaded."
+
 	ens.close()
+	cur.close()
+	con.close()
+	return
 
 def download_and_unzip(ftp,f,outfile):
 	o = open(outfile,'wb')
@@ -127,69 +152,14 @@ def download_and_unzip(ftp,f,outfile):
 	proc.wait()
 	return
 
-def get_gff_files(fg, outdir):
-	ens = ftplib.FTP('ftp.ensemblgenomes.org')
-	ens.login()
-	print "Downloading GFF3 files..."
-	count = 0
-	for f in fg:
-		ens.cwd("/pub/bacteria/current/gff3/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
-		for filepath in ens.nlst():
-			fields = filepath.split(".")
-			if ".".join(fields[3:]) == ("gff3.gz"):
-				download_and_unzip(ens,filepath,os.path.join(outdir,"gff3",fg[f]["species"]+".gff3.gz"))
-		count += 1
-		if count % 10 == 0:
-			print count, "files downloaded."
-	ens.close()
-
-def setup_psqldb():
-	con = psycopg2.connect(user='ryan', dbname="postgres", host='localhost', password='')
-	con.set_isolation_level(0)
-	cur = con.cursor()
-	cur.execute("CREATE DATABASE genomedb")
-	cur.close()
-	con.close()
-
-	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
-	cur = con.cursor()
-	cur.execute("""CREATE TABLE genome_metadata (id serial PRIMARY KEY, assembly_id varchar, source varchar, base_count int,
-		species varchar, taxonomy_id int, contigs int, protein_coding_genes int, date_added date, date_modified date);""")
-	con.commit()
-	cur.close()
-	con.close()
-	return
-
-def populate_psqldb(fg, EV):
-	print "Updating SQL database..."
-	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
-	cur = con.cursor()
-	for f in fg:
-		sql = """INSERT INTO genome_metadata (assembly_id, base_count, species, taxonomy_id, contigs,
-			protein_coding_genes, source, date_added, date_modified) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);"""
-		vals = [f]
-		for key in ["base_count", "species", "taxonomy_id", "contigs","ngenes"]:
-			vals.append(fg[f][key])
-		vals.append("ensembl-"+EV)
-		vals.append(datetime.datetime.now())
-		vals.append(datetime.datetime.now())
-		cur.execute(sql, vals)
-	con.commit()
-	cur.close()
-	con.close()
-
 def main():
 	args = parse_args()
+
 	outdir = os.path.abspath(args.outdir)
-
-	# this step will fail if the genomeDB psql database already exists - this is intentional
-	setup_psqldb()
-
 	setupdirs(outdir)
+
 	finished_genomes, ENSEMBL_VERSION = parse_json(outdir)
-	get_fasta_files(finished_genomes, outdir)
-	get_gff_files(finished_genomes, outdir)
-	populate_psqldb(finished_genomes,ENSEMBL_VERSION)
+	get_files(finished_genomes, outdir, ENSEMBL_VERSION)
 
 if __name__ == '__main__':
 	main()
