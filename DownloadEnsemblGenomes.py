@@ -7,6 +7,7 @@
 import ijson
 import ftplib
 import psycopg2
+import datetime
 import argparse, os, errno, sys, subprocess
 from urllib import urlopen
 
@@ -16,8 +17,7 @@ A script for accessing the current release of Ensembl Bacteria and downloading
 complete genomes.  Will download nucleotide, amino acid, and CDS information, as
 well as a metadata table for SQL.
 	''')
-	parser.add_argument('outdir', type=str,help='directory to download genomes to')
-	parser.add_argument('--newdb', action="store_true",help="use if new psql database must be generated")
+	parser.add_argument('outdir', type=str,help='directory to download genomes to and name of psql library')
 	return parser.parse_args()
 
 def parse_json(outdir):
@@ -66,16 +66,12 @@ def parse_json(outdir):
 		if count % 100 == 0:
 			print count, "JSON records parsed."
 
-		#### remove! only for testing purposes
-		if count > 100:
-			break
-
 	print len(finished_genomes), "of these are finished genomes."
 	o.close()
 	p.close()
 
 	ens.close()
-	return finished_genomes
+	return finished_genomes,j
 
 def setupdirs(outdir):
 	try:
@@ -142,45 +138,58 @@ def get_gff_files(fg, outdir):
 			fields = filepath.split(".")
 			if ".".join(fields[3:]) == ("gff3.gz"):
 				download_and_unzip(ens,filepath,os.path.join(outdir,"gff3",fg[f]["species"]+".gff3.gz"))
-	ens.close()
-
-def get_genbank_files(fg, outdir):
-	ens = ftplib.FTP('ftp.ensemblgenomes.org')
-	ens.login()
-	print "Downloading genbank files..."
-	count = 0
-	for f in fg:
-		print "_".join(fg[f]["dbname"].split("_")[0:3])
-		print fg[f]["species"]
-		ens.cwd("/pub/bacteria/current/genbank/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
-		for filepath in ens.nlst():
-			if filepath.endswith(".dat.gz"):
-				download_and_unzip(ens,filepath,os.path.join(outdir,"genbank",fg[f]["species"]+".gb.gz"))
+		count += 1
+		if count % 10 == 0:
+			print count, "files downloaded."
 	ens.close()
 
 def setup_psqldb():
 	con = psycopg2.connect(user='ryan', dbname="postgres", host='localhost', password='')
 	con.set_isolation_level(0)
 	cur = con.cursor()
-	cur.execute('CREATE DATABASE test')
-	con.set_isolation_level(1)
-	cur.execute("""CREATE TABLE test (id serial PRIMARY KEY, assembly_id varchar, source varchar, base_count int,
+	cur.execute("CREATE DATABASE genomedb")
+	cur.close()
+	con.close()
+
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+	cur = con.cursor()
+	cur.execute("""CREATE TABLE genome_metadata (id serial PRIMARY KEY, assembly_id varchar, source varchar, base_count int,
 		species varchar, taxonomy_id int, contigs int, protein_coding_genes int, date_added date, date_modified date);""")
+	con.commit()
 	cur.close()
 	con.close()
 	return
 
+def populate_psqldb(fg, EV):
+	print "Updating SQL database..."
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+	cur = con.cursor()
+	for f in fg:
+		sql = """INSERT INTO genome_metadata (assembly_id, base_count, species, taxonomy_id, contigs,
+			protein_coding_genes, source, date_added, date_modified) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);"""
+		vals = [f]
+		for key in ["base_count", "species", "taxonomy_id", "contigs","ngenes"]:
+			vals.append(fg[f][key])
+		vals.append("ensembl-"+EV)
+		vals.append(datetime.datetime.now())
+		vals.append(datetime.datetime.now())
+		cur.execute(sql, vals)
+	con.commit()
+	cur.close()
+	con.close()
+
 def main():
 	args = parse_args()
 	outdir = os.path.abspath(args.outdir)
-	newdb = args.newdb
-	if newdb:
-		setup_psqldb()
+
+	# this step will fail if the genomeDB psql database already exists - this is intentional
+	setup_psqldb()
+
 	setupdirs(outdir)
-	finished_genomes = parse_json(outdir)
+	finished_genomes, ENSEMBL_VERSION = parse_json(outdir)
 	get_fasta_files(finished_genomes, outdir)
 	get_gff_files(finished_genomes, outdir)
-	get_genbank_files(finished_genomes, outdir)
+	populate_psqldb(finished_genomes,ENSEMBL_VERSION)
 
 if __name__ == '__main__':
 	main()
