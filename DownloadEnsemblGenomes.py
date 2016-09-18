@@ -20,7 +20,7 @@ well as a metadata table for SQL.
 	parser.add_argument('outdir', type=str,help='directory to download genomes to and name of psql library')
 	return parser.parse_args()
 
-def parse_json(outdir):
+def parse_json(outdir, assemblies):
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
 	ens.cwd('pub/bacteria/current')
@@ -40,9 +40,9 @@ def parse_json(outdir):
 
 	items = ijson.items(urlopen("ftp://ftp.ensemblgenomes.org/{}/species_metadata_EnsemblBacteria.json".format(ens.pwd())),'item')
 	count = 0
+	already = 0
 	finished_genomes = {}
 
-	p = open(os.path.join(outdir, "downloaded_genomes.txt"),'w')
 	for js in items:
 		count += 1
 
@@ -54,26 +54,25 @@ def parse_json(outdir):
 		thisline.append(js["annotations"]["nProteinCoding"])
 
 		if js["assembly_level"] == "chromosome":
-			finished_genomes[js["assembly_id"]] = {}
-			for feat in ['assembly_level','base_count','name', 'strain', 'dbname','species','taxonomy_id']:
-				finished_genomes[js["assembly_id"]][feat] = js[feat]
-			finished_genomes[js["assembly_id"]]['contigs'] = len(js["sequences"])
-			finished_genomes[js["assembly_id"]]['ngenes'] = js["annotations"]["nProteinCoding"]
-			p.write("\t".join([str(x) for x in thisline])+"\n")
+			if js["assembly_id"] in assemblies:
+				already += 1
+			else:
+				finished_genomes[js["assembly_id"]] = {}
+				for feat in ['assembly_level','base_count','name', 'strain', 'dbname','species','taxonomy_id']:
+					finished_genomes[js["assembly_id"]][feat] = js[feat]
+				finished_genomes[js["assembly_id"]]['contigs'] = len(js["sequences"])
+				finished_genomes[js["assembly_id"]]['ngenes'] = js["annotations"]["nProteinCoding"]
+
 
 		o.write("\t".join([str(x) for x in thisline])+"\n")
 
 		if count % 100 == 0:
 			print count, "JSON records parsed."
 
-		##### FOR TESTING, REMOVE!!
-		if count > 100:
-			break
-
-	print len(finished_genomes), "of these are finished genomes."
+	print count, "total JSON records parsed."
+	print len(assemblies), "found in", os.path.basename(outdir)+"."
+	print len(finished_genomes), "remaining to download."
 	o.close()
-	p.close()
-
 	ens.close()
 	return finished_genomes,j
 
@@ -83,8 +82,6 @@ def setupdirs(outdir):
 	except OSError as exc:
 		if exc.errno == errno.EEXIST:
 			print "Database folder exists:", outdir
-			print "Exiting to prevent overwriting..."
-			sys.exit()
 
 	for f in ["cds","pep","dna","ncrna", "gff3", "genbank"]:
 		try:
@@ -100,7 +97,7 @@ def get_files(fg, outdir, EV):
 	cur = con.cursor()
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
-	print "Downloading fasta files..."
+	print "Downloading genome files..."
 	count = 0
 	for f in fg:
 		ens.cwd("/pub/bacteria/current/fasta/{}/{}/dna".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
@@ -135,8 +132,7 @@ def get_files(fg, outdir, EV):
 		cur.execute(sql, vals)
 		con.commit()
 		count += 1
-		if count % 10 == 0:
-			print count, "files downloaded."
+		print fg[f]["species"], "processed.", count, "files downloaded."
 
 	ens.close()
 	cur.close()
@@ -152,13 +148,28 @@ def download_and_unzip(ftp,f,outfile):
 	proc.wait()
 	return
 
+def query_sql():
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+	cur = con.cursor()
+	cur.execute("SELECT * FROM genome_metadata")
+	records = cur.fetchall()
+	assemblies = []
+	for r in records:
+		assemblies.append(r[1])
+
+	cur.close()
+	con.close()
+	return assemblies
+
 def main():
 	args = parse_args()
 
 	outdir = os.path.abspath(args.outdir)
 	setupdirs(outdir)
 
-	finished_genomes, ENSEMBL_VERSION = parse_json(outdir)
+	assemblies = query_sql()
+
+	finished_genomes, ENSEMBL_VERSION = parse_json(outdir,assemblies)
 	get_files(finished_genomes, outdir, ENSEMBL_VERSION)
 
 if __name__ == '__main__':
