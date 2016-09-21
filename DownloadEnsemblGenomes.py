@@ -21,9 +21,10 @@ well as a metadata table for SQL.
 	parser.add_argument('sql_user',type=str, help='user for sql')
 	parser.add_argument('sql_db',type=str,help='name of sql database')
 	parser.add_argument('sql_host', type=str, help='host for sql: "localhost" for MacOSX psql install, "172.18.0.71" for bugaboo')
+	parser.add_argument('--names', type=str, help='comma-separated list of keywords to find in name of strain to download draft genomes. i.e. "pseudomonas,salmonella,syringae,K12". Only complete/exact matches will be downloaded and spelling counts!')
 	return parser.parse_args()
 
-def parse_json(outdir, assemblies):
+def parse_json(outdir, assemblies, names):
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
 	ens.cwd('pub/bacteria/current')
@@ -43,7 +44,6 @@ def parse_json(outdir, assemblies):
 
 	items = ijson.items(urlopen("ftp://ftp.ensemblgenomes.org/{}/species_metadata_EnsemblBacteria.json".format(ens.pwd())),'item')
 	count = 0
-	already = 0
 	finished_genomes = {}
 
 	for js in items:
@@ -57,15 +57,22 @@ def parse_json(outdir, assemblies):
 		thisline.append(js["annotations"]["nProteinCoding"])
 
 		if js["assembly_level"] == "chromosome":
-			if js["assembly_id"] in assemblies:
-				already += 1
-			else:
+			if js["assembly_id"] not in assemblies:
 				finished_genomes[js["assembly_id"]] = {}
 				for feat in ['assembly_level','base_count','name', 'strain', 'dbname','species','taxonomy_id']:
 					finished_genomes[js["assembly_id"]][feat] = js[feat]
 				finished_genomes[js["assembly_id"]]['contigs'] = len(js["sequences"])
 				finished_genomes[js["assembly_id"]]['ngenes'] = js["annotations"]["nProteinCoding"]
-
+		else:
+			fields = js['species'].split("_")
+			for n in names:
+				if n in fields:
+					if js["assembly_id"] not in assemblies:
+						finished_genomes[js["assembly_id"]] = {}
+						for feat in ['assembly_level','base_count','name', 'strain', 'dbname','species','taxonomy_id']:
+							finished_genomes[js["assembly_id"]][feat] = js[feat]
+						finished_genomes[js["assembly_id"]]['contigs'] = len(js["sequences"])
+						finished_genomes[js["assembly_id"]]['ngenes'] = js["annotations"]["nProteinCoding"]
 
 		o.write("\t".join([str(x) for x in thisline])+"\n")
 
@@ -188,11 +195,18 @@ def main():
 	sql_user = args.sql_user
 	sql_db = args.sql_db
 	sql_host = args.sql_host
+	if args.names == None:
+		names = []
+	else:
+		names = args.names.split(",")
+	for n in names:
+		print n
+
 	setupdirs(outdir)
 
 	assemblies = query_sql(sql_user,sql_db,sql_host)
 
-	finished_genomes, ENSEMBL_VERSION = parse_json(outdir,assemblies)
+	finished_genomes, ENSEMBL_VERSION = parse_json(outdir,assemblies,names)
 	get_files(finished_genomes, outdir, ENSEMBL_VERSION, sql_user, sql_db, sql_host)
 	dump_flat_file(outdir,sql_user,sql_db,sql_host)
 
