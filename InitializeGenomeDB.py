@@ -11,14 +11,14 @@ Sets up the genomedb PostgreSQL database and the genome_metadata table.
 	return parser.parse_args()
 
 def setup_psqldb():
-	con = psycopg2.connect(user='ryan', dbname="postgres", host='localhost', password='')
+	con = psycopg2.connect(user='melnyk', dbname="db_melnyk", host='172.18.0.71', password='')
 	con.set_isolation_level(0)
 	cur = con.cursor()
 	cur.execute("CREATE DATABASE genomedb")
 	cur.close()
 	con.close()
 
-	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+	con = psycopg2.connect(user='melnyk', dbname="db_melnyk", host='172.18.0.71', password='')
 	cur = con.cursor()
 	cur.execute("""CREATE TABLE genome_metadata (id serial PRIMARY KEY, assembly_id varchar, source varchar, base_count int,
 		species varchar, taxonomy_id int, contigs int, protein_coding_genes int, date_added date, date_modified date);""")
