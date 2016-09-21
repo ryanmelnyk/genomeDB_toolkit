@@ -6,7 +6,8 @@ import argparse, psycopg2
 
 def parse_args():
 	parser = argparse.ArgumentParser(description='''
-Sets up the genomedb PostgreSQL database and the genome_metadata table.
+Sets up the genomedb PostgreSQL database and the genome_metadata table. This works for a local install of
+postgres in MacOSX. Change SQL info as necessary.
 	''')
 	return parser.parse_args()
 

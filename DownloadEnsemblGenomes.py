@@ -18,6 +18,9 @@ complete genomes.  Will download nucleotide, amino acid, and CDS information, as
 well as a metadata table for SQL.
 	''')
 	parser.add_argument('outdir', type=str,help='directory to download genomes')
+	parser.add_argument('sql_user',type=str, help='user for sql')
+	parser.add_argument('sql_db',type=str,help='name of sql database')
+	parser.add_argument('sql_host', type=str, help='host for sql: "localhost" for MacOSX psql install, "172.18.0.71" for bugaboo')
 	return parser.parse_args()
 
 def parse_json(outdir, assemblies):
@@ -92,8 +95,8 @@ def setupdirs(outdir):
 	print outdir
 	return
 
-def get_files(fg, outdir, EV):
-	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+def get_files(fg, outdir, EV, sql_user, sql_db, sql_host):
+	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
 	cur = con.cursor()
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
@@ -148,8 +151,8 @@ def download_and_unzip(ftp,f,outfile):
 	proc.wait()
 	return
 
-def query_sql():
-	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
+def query_sql(sql_user,sql_db,sql_host):
+	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
 	cur = con.cursor()
 	cur.execute("SELECT * FROM genome_metadata")
 	records = cur.fetchall()
@@ -165,12 +168,15 @@ def main():
 	args = parse_args()
 
 	outdir = os.path.abspath(args.outdir)
+	sql_user = args.sql_user
+	sql_db = args.sql_db
+	sql_host = args.sql_host
 	setupdirs(outdir)
 
-	assemblies = query_sql()
+	assemblies = query_sql(sql_user,sql_db,sql_host)
 
 	finished_genomes, ENSEMBL_VERSION = parse_json(outdir,assemblies)
-	get_files(finished_genomes, outdir, ENSEMBL_VERSION)
+	get_files(finished_genomes, outdir, ENSEMBL_VERSION, sql_user, sql_db, sql_host)
 
 if __name__ == '__main__':
 	main()
