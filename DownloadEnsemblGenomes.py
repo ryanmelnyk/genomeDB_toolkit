@@ -93,7 +93,7 @@ def setupdirs(outdir):
 		if exc.errno == errno.EEXIST:
 			print "Database folder exists:", outdir
 
-	for f in ["cds","pep","dna","ncrna", "gff3", "genbank"]:
+	for f in ["cds","pep","dna","ncrna", "gff3"]:
 		try:
 			os.makedirs(os.path.join(os.path.join(outdir,f)))
 		except OSError:
