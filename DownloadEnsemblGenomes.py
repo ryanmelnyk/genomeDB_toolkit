@@ -17,7 +17,7 @@ A script for accessing the current release of Ensembl Bacteria and downloading
 complete genomes.  Will download nucleotide, amino acid, and CDS information, as
 well as a metadata table for SQL.
 	''')
-	parser.add_argument('outdir', type=str,help='directory to download genomes to and name of psql library')
+	parser.add_argument('outdir', type=str,help='directory to download genomes')
 	return parser.parse_args()
 
 def parse_json(outdir, assemblies):
