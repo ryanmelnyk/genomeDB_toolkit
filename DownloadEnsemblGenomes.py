@@ -93,7 +93,7 @@ def setupdirs(outdir):
 	return
 
 def get_files(fg, outdir, EV):
-	con = psycopg2.connect(user='melnyk', dbname="db_melnyk", host='172.18.0.71', password='')
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
 	cur = con.cursor()
 	ens = ftplib.FTP('ftp.ensemblgenomes.org')
 	ens.login()
@@ -149,7 +149,7 @@ def download_and_unzip(ftp,f,outfile):
 	return
 
 def query_sql():
-	con = psycopg2.connect(user='melnyk', dbname="db_melnyk", host='127.18.0.71', password='')
+	con = psycopg2.connect(user='ryan', dbname="genomedb", host='localhost', password='')
 	cur = con.cursor()
 	cur.execute("SELECT * FROM genome_metadata")
 	records = cur.fetchall()
