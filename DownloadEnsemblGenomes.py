@@ -69,7 +69,7 @@ def parse_json(outdir, assemblies):
 
 		o.write("\t".join([str(x) for x in thisline])+"\n")
 
-		if count % 100 == 0:
+		if count % 500 == 0:
 			print count, "JSON records parsed."
 
 	print count, "total JSON records parsed."
@@ -164,6 +164,23 @@ def query_sql(sql_user,sql_db,sql_host):
 	con.close()
 	return assemblies
 
+def dump_flat_file(outdir,sql_user,sql_db,sql_host):
+	print "Dumping SQL database to genome_metadata.txt..."
+	o = open(os.path.join(outdir, "genome_metadata.txt"),'w')
+	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
+	cur = con.cursor()
+
+	cur.execute("SELECT * FROM genome_metadata")
+	o.write("\t".join([desc[0] for desc in cur.description])+"\n")
+	records = cur.fetchall()
+	for r in records:
+		o.write("\t".join([str(x) for x in r])+"\n")
+
+	cur.close()
+	con.close()
+	o.close()
+	return
+
 def main():
 	args = parse_args()
 
@@ -177,6 +194,7 @@ def main():
 
 	finished_genomes, ENSEMBL_VERSION = parse_json(outdir,assemblies)
 	get_files(finished_genomes, outdir, ENSEMBL_VERSION, sql_user, sql_db, sql_host)
+	dump_flat_file(outdir,sql_user,sql_db,sql_host)
 
 if __name__ == '__main__':
 	main()
