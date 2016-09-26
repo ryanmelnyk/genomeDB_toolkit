@@ -17,7 +17,7 @@ Populate the taxonomy psql table with taxonomy information extracted from NCBI T
 	parser.add_argument('sql_host', type=str, help='host for sql: "localhost" for MacOSX psql install, "172.18.0.71" for bugaboo')
 	return parser.parse_args()
 
-def get_genomedb_data(sql_user,sql_db,sql_host):
+def get_genomedb_data(strains,sql_user,sql_db,sql_host):
 
 	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
 	cur = con.cursor()
@@ -25,7 +25,8 @@ def get_genomedb_data(sql_user,sql_db,sql_host):
 	records = cur.fetchall()
 	taxdata = {}
 	for r in records:
-		taxdata[r[4]] = r[5]
+		if r[4] not in strains:
+			taxdata[r[4]] = r[5]
 
 	cur.close()
 	con.close()
@@ -87,6 +88,18 @@ def dump_flat_file(outdir,sql_user,sql_db,sql_host):
 	o.close()
 	return
 
+def query_sql(sql_user,sql_db,sql_host):
+	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
+	cur = con.cursor()
+	cur.execute("SELECT * FROM taxonomy")
+	records = cur.fetchall()
+	strains = []
+	for r in records:
+		strains.append(r[1])
+
+	cur.close()
+	con.close()
+	return strains
 
 def main():
 	args = parse_args()
@@ -95,7 +108,8 @@ def main():
 	sql_db = args.sql_db
 	sql_host = args.sql_host
 
-	taxdata = get_genomedb_data(sql_user,sql_db,sql_host)
+	strains = query_sql(sql_user,sql_db,sql_host)
+	taxdata = get_genomedb_data(strains, sql_user,sql_db,sql_host)
 	fetch_tax(taxdata,sql_user,sql_db,sql_host)
 	dump_flat_file(outdir,sql_user,sql_db,sql_host)
 
