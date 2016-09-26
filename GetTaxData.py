@@ -11,6 +11,7 @@ def parse_args():
 	parser = argparse.ArgumentParser(description='''
 Populate the taxonomy psql table with taxonomy information extracted from NCBI Taxonomy.
 	''')
+	parser.add_argument('outdir', type=str,help='directory to download genomes')
 	parser.add_argument('sql_user',type=str, help='user for sql')
 	parser.add_argument('sql_db',type=str,help='name of sql database')
 	parser.add_argument('sql_host', type=str, help='host for sql: "localhost" for MacOSX psql install, "172.18.0.71" for bugaboo')
@@ -69,15 +70,34 @@ def fetch_tax(taxdata,sql_user,sql_db,sql_host):
 
 	return
 
+def dump_flat_file(outdir,sql_user,sql_db,sql_host):
+	print "Dumping SQL database to taxonomy.txt..."
+	o = open(os.path.join(outdir, "taxonomy.txt"),'w')
+	con = psycopg2.connect(user=sql_user, dbname=sql_db, host=sql_host, password='')
+	cur = con.cursor()
+
+	cur.execute("SELECT * FROM taxonomy")
+	o.write("\t".join([desc[0] for desc in cur.description])+"\n")
+	records = cur.fetchall()
+	for r in records:
+		o.write("\t".join([str(x) for x in r])+"\n")
+
+	cur.close()
+	con.close()
+	o.close()
+	return
+
 
 def main():
 	args = parse_args()
+	outdir = os.path.abspath(args.outdir)
 	sql_user = args.sql_user
 	sql_db = args.sql_db
 	sql_host = args.sql_host
 
 	taxdata = get_genomedb_data(sql_user,sql_db,sql_host)
 	fetch_tax(taxdata,sql_user,sql_db,sql_host)
+	dump_flat_file(outdir,sql_user,sql_db,sql_host)
 
 if __name__ == '__main__':
 	main()
