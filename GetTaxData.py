@@ -42,7 +42,7 @@ def fetch_tax(taxdata,sql_user,sql_db,sql_host):
 	print "Extracting", str(count), "taxonomy records from Entrez-NCBI..."
 	for t in taxdata:
 		values = [t,taxdata[t],None,None,None,None,None,None,None,datetime.datetime.now(),datetime.datetime.now()]
-		records = Entrez.parse(Entrez.efetch(db="taxonomy",id=taxdata[t],retmode="xml"))
+		records = Entrez.parse(Entrez.efetch(db="taxonomy",id=str(taxdata[t]),retmode="xml"))
 		for r in records:
 			for l in r["LineageEx"]:
 				if l["Rank"] == "superkingdom":
