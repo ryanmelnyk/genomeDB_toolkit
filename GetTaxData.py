@@ -2,7 +2,7 @@
 #schmelnyk@gmail.com
 #UBC Microbiology - Haney Lab
 
-import argparse, psycopg2
+import argparse, psycopg2, os
 from Bio import Entrez
 import datetime
 
