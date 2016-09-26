@@ -53,10 +53,12 @@ def fetch_tax(taxdata,sql_user,sql_db,sql_host):
 					values[4] = l["ScientificName"]
 				elif l["Rank"] == "order":
 					values[5] = l["ScientificName"]
-				elif l["Rank"] == "genus":
+				elif l["Rank"] == "family":
 					values[6] = l["ScientificName"]
-				elif l["Rank"] == "species":
+				elif l["Rank"] == "genus":
 					values[7] = l["ScientificName"]
+				elif l["Rank"] == "species":
+					values[8] = l["ScientificName"]
 				else:
 					pass
 		count -= 1
