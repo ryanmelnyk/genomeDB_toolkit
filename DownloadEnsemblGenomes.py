@@ -93,7 +93,7 @@ def setupdirs(outdir):
 		if exc.errno == errno.EEXIST:
 			print "Database folder exists:", outdir
 
-	for f in ["cds","pep","dna","ncrna", "gff3"]:
+	for f in ["pep","dna", "gff3"]:
 		try:
 			os.makedirs(os.path.join(os.path.join(outdir,f)))
 		except OSError:
@@ -118,14 +118,6 @@ def get_files(fg, outdir, EV, sql_user, sql_db, sql_host):
 		for filepath in ens.nlst():
 			if filepath.endswith(".pep.all.fa.gz"):
 				download_and_unzip(ens,filepath,os.path.join(outdir,"pep",fg[f]["species"]+".pep.fa.gz"))
-		ens.cwd("../cds")
-		for filepath in ens.nlst():
-			if filepath.endswith(".cds.all.fa.gz"):
-				download_and_unzip(ens,filepath,os.path.join(outdir,"cds",fg[f]["species"]+".cds.fa.gz"))
-		ens.cwd("../ncrna")
-		for filepath in ens.nlst():
-			if filepath.endswith(".ncrna.fa.gz"):
-				download_and_unzip(ens,filepath,os.path.join(outdir,"ncrna",fg[f]["species"]+".ncrna.fa.gz"))
 		ens.cwd("/pub/bacteria/current/gff3/{}/{}".format("_".join(fg[f]["dbname"].split("_")[0:3]),fg[f]["species"]))
 		for filepath in ens.nlst():
 			fields = filepath.split(".")
