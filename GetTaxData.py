@@ -28,6 +28,8 @@ def get_genomedb_data(strains,sql_user,sql_db,sql_host):
 		if r[4] not in strains:
 			taxdata[r[4]] = r[5]
 
+	print "{} strains found in genomedb to query taxonomy...".format(len(taxdata.keys()))
+
 	cur.close()
 	con.close()
 	return taxdata
@@ -99,6 +101,7 @@ def query_sql(sql_user,sql_db,sql_host):
 	for r in records:
 		strains.append(r[1])
 
+	print "{} strains already found in taxonomy DB...".format(len(strains))
 	cur.close()
 	con.close()
 	return strains
